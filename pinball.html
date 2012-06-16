@@ -1,0 +1,317 @@
+<!doctype html>
+<html>
+  <head>
+    <title>pinball</title>
+    <meta charset="utf-8">
+    <style>
+      h1 {
+        float:right
+      }
+      body {
+        font-family: helvetica, arial, sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="arena" width="350" height="500"></canvas>
+
+        <video id="awesome" controls></video>
+    <script src="schema.js"></script>
+<script src="lib.js"></script>
+    <script>
+      var ctx = document.getElementById('arena').getContext('2d');
+      var lines = [
+          [10, 10, 10, 300],
+          [10, 10, 300, 10],
+          [10, 300, 300, 400],
+          [300, 10, 300, 400],
+          [100, 10, 200, 150]
+        ];
+      for(var brad = 32, bx = 100, by = 100, i = 0, pf = Math.PI/8; i < 2 * Math.PI; i+= pf){
+        lines.push([
+            bx + brad * Math.cos(i),
+            by + brad * Math.sin(i),
+            bx + brad * Math.cos(i - pf),
+            by + brad * Math.sin(i - pf)
+          ])
+      }
+      var x = 50, y = 50;
+      var vx = 0, vy = 0;
+      var r = 10;
+      function frame(){
+        ctx.fillStyle = 'white'
+        ctx.fillRect(0,0,1000,1000)
+        ctx.fillStyle = 'black'
+        //ctx.clearRect(0,0,1000,1000);
+        ctx.beginPath();
+        x += vx;
+        y += vy;
+        vy += 0.1; //gravity
+        for(var i = lines.length; i--;){
+          var l = lines[i];
+          ctx.moveTo(l[0], l[1]);
+          ctx.lineTo(l[2], l[3]);
+          //var lt = Math.atan2(l[3] - l[1], l[2] - l[0])
+          var a1 = -vy, b1 = vx;
+          var a2 = -(l[1] - l[3]), b2 = l[0] - l[2];
+          var c1 = a1 * x + b1 * y;
+          var c2 = a2 * l[0] + b2 * l[1];
+          var ix = (b2 * c1 - b1 * c2)/(a1 * b2 - a2 * b1);
+          //var iy = (b2 * c1 - b1 * c2)/(a1 * b2 - a2 * b1);//(c1 - a1 * ix)/b1;
+          var iy = (c1 * a2 - a1 * c2)/(b1 * a2 - a1 * b2);
+          //a1 * x + b1 * y = c1
+          //a2 * x + b2 * y = c2
+          /*
+          for(var k = 0; k < 200; k++){
+            ctx.fillRect(k, (c1 - a1 * k)/b1, 2, 2);    
+          }
+          for(var k = 0; k < 200; k++){
+            ctx.fillRect(k, (c2 - a2 * k)/b2, 2, 2);    
+          }
+          */
+          //console.log(ix, iy);
+          //ctx.fillRect(ix - 2, iy - 2, 4, 4);
+          ctx.moveTo(x, y);
+          //ctx.lineTo(x + , iy);
+          //console.log(ix, iy)
+          //ctx.moveTo(x, y);
+          //ctx.lineTo(x + vx * 30, y + vy * 30);
+          //todo: extend each line by a unit vector before testing
+          var xx = Math.max(l[0], l[2]) + 1, nx = Math.min(l[0], l[2]) - 1;
+          var xy = Math.max(l[1], l[3]) + 1, ny = Math.min(l[1], l[3]) -1 ;
+          if(ix > x == vx > 0 && iy > y == vy > 0){
+            //console.log('directionality passed');
+            if(ix <= xx && ix >= nx && iy <= xy && iy >= ny){
+              //console.log('bounding intercept passed');
+              var d2 = (ix - x) * (ix - x) + (iy - y) * (iy - y);
+              var mag = Math.sqrt(vx*vx + vy * vy);
+              ctx.fillRect(ix - 2, iy - 2, 4, 4);
+              if(Math.sqrt(d2) <= (r + mag + 1)){
+                //console.log('distance passed');
+                //rotate
+                //console.log('carl sagan');
+                var la = Math.atan2(l[3] - l[1], l[2] - l[0]);
+                var ba = Math.atan2(vy, vx);
+                var da = 2 * la - ba;
+                //da = 2 * la - da;
+                //if(i == 2) mag += (Math.random() - 0.5);
+                //mag *= 0.99;
+                vx =  mag * Math.cos(da);
+                vy = mag * Math.sin(da);
+                //console.log(mag)
+                //break;
+                //console.log(vx, vy);
+              }
+            }
+          }
+        }
+        var mag = Math.sqrt(vx*vx + vy * vy);
+        //ctx.fillRect(0, 0, mag * 10, 20);
+        //ctx.fillRect(0, 20, 5 * Math.sqrt(vx * vx + vy * vy + 500 - y), 20);
+        //ctx.fillRect(0, 40, Math.abs(vy * 10), 20);
+        ctx.moveTo(x + r,y);
+        ctx.arc(x,y,r,0,Math.PI*2,false);
+        
+        ctx.stroke();
+
+        return ctx.canvas.toDataURL('image/webp')
+      }
+
+
+        function parseRIFF(string){
+    var offset = 0;
+    var chunks = {};
+    while(offset < string.length){
+      var id = string.substr(offset, 4);
+      var len = parseInt(string.substr(offset+4, 4).split('').map(function(i){
+        var unpadded = i.charCodeAt(0).toString(2);
+        return (new Array(8 - unpadded.length + 1)).join('0') + unpadded
+      }).join(''),2);
+      var data = string.substr(offset + 4 + 4, len);
+      offset += 4 + 4 + len;
+      chunks[id] = chunks[id] || [];
+      if(id == 'RIFF'){
+        chunks[id].push(parseRIFF(data));
+      }else if(id == 'LIST'){
+        chunks[id].push(parseRIFF(data));
+      }else{
+        chunks[id].push(data)
+      }
+      
+    }
+    return chunks
+  }
+
+
+
+  function parseWebP(riff){
+    var VP8 = riff.RIFF[0].WEBP[0];
+    
+    var frame_start = VP8.indexOf('\x9d\x01\x2a'); //A VP8 keyframe starts with the 0x9d012a header
+    for(var i = 0, c = []; i < 4; i++) c[i] = VP8.charCodeAt(frame_start + 3 + i);
+    
+    var width, horizontal_scale, height, vertical_scale, tmp;
+    
+    //the code below is literally copied verbatim from the bitstream spec
+    tmp = (c[1] << 8) | c[0];
+    width = tmp & 0x3FFF;
+    horizontal_scale = tmp >> 14;
+    tmp = (c[3] << 8) | c[2];
+    height = tmp & 0x3FFF;
+    vertical_scale = tmp >> 14;
+    return {
+      width: width,
+      height: height,
+      data: VP8,
+      riff: riff
+    }
+  }
+
+var webp = parseWebP(parseRIFF(atob(frame().slice(23))));
+var duration = 5000;
+var frames = 150;
+
+      EBML = {
+  "EBML": [
+    {
+      "EBMLVersion": 1,
+      "EBMLReadVersion": 1,
+      "EBMLMaxIDLength": 4,
+      "EBMLMaxSizeLength": 8,
+      "DocType": "webm",
+      "DocTypeVersion": 2,
+      "DocTypeReadVersion": 2
+    }
+  ],
+  "Segment": [
+    {
+      "Info": [
+        {
+          "TimecodeScale": 1000000, //do things in milliseconds (number of nanosecs for duration scale)
+          "MuxingApp": "Lavf53.21.0", //whatevs dont change wat aint broke
+          "WritingApp": "Lavf53.21.0",
+          "SegmentUID": "³Ñ^xì\u001añLl^;Y", //a  hundred twenty eight bits of random
+          "Duration": duration
+        }
+      ],
+      "Tracks": [
+        {
+          "TrackEntry": [
+            {
+              "TrackNumber": 1,
+              "TrackUID": 1,
+              "FlagLacing": 0,
+              "Language": "und",
+              "CodecID": "V_VP8",
+              "TrackType": 1,
+              "DefaultDuration": Math.round(1e6 * duration / frames), //83333333, //nanosecs per frame
+              "Video": {
+                "PixelWidth": webp.width,
+                "PixelHeight": webp.height,
+                "DisplayWidth": webp.width,
+                "DisplayHeight": webp.height,
+                "DisplayUnit": 3 //interpret as display aspect ratio
+              }
+            }
+          ]
+        }
+      ],
+      "Cluster": [
+        {
+          "Timecode": 0,
+          "SimpleBlock": [
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+
+function parseSimpleBlock(data){
+  if(data.length < 4){
+    throw "Invalid Simple Block";
+  }
+  var buf = data.substr(0,4).split('').map(function(e){
+    return e.charCodeAt(0)
+  });
+  if((buf[0] & 0x80) != 0x80){
+    throw "Invalid Simple Block: TrackNumber > 127 not supported";
+  }
+  var trackNum = buf[0] & 0x7f;
+  var timecode = buf[1] << 8 | buf[2];
+  var flags = buf[3] & 0xff;
+  var keyframe = flags >> 7;
+  var invisible = ((flags >> 3) & 0x1);
+  var discardable = (flags  & 0x1);
+  var lacing = (flags >> 1) & 0x3;
+  //0 = no lacing, 1 = xiph lacing, 2 = fixed-size lacing, 3 = ebml lacing
+
+  return {
+    trackNum: trackNum,
+    timecode: timecode,
+    lacing: lacing,
+    discardable: discardable,
+    invisible: invisible,
+    keyframe: keyframe,
+    frame: data.substr(4)
+  }
+}
+
+
+function makeSimpleBlock(data){
+  var flags = 0;
+  if(data.keyframe) flags |= 128;
+  if(data.invisible) flags |= 8;
+  if(data.lacing) flags |= (data.lacing << 1);
+  if(data.discardable) flags |= 1;
+  if(data.trackNum > 127){
+    throw "TrackNumber > 127 not supported";
+  }
+  var out = [data.trackNum | 0x80, data.timecode >> 8, data.timecode & 0xff, flags].map(function(e){
+    return String.fromCharCode(e)
+  }).join('') + data.frame;
+
+  return out
+
+}
+
+
+for(var i = 0; i < frames; i++){
+  var webp = parseWebP(parseRIFF(atob(frame().slice(23))))
+  EBML.Segment[0].Cluster[0].SimpleBlock.push(makeSimpleBlock({
+    discardable: 0,
+    frame:webp.data.substr(4),
+    invisible: 0,
+    keyframe: 1,
+    lacing: 0,
+    timecode: Math.round(i / frames * duration),
+    trackNum: 1
+  }))
+  
+}
+
+
+function encode_64(input) {
+  var output = "", i = 0, l = input.length,
+  key = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=", 
+  chr1, chr2, chr3, enc1, enc2, enc3, enc4;
+  while (i < l) {
+    chr1 = input.charCodeAt(i++);
+    chr2 = input.charCodeAt(i++);
+    chr3 = input.charCodeAt(i++);
+    enc1 = chr1 >> 2;
+    enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
+    enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
+    enc4 = chr3 & 63;
+    if (isNaN(chr2)) enc3 = enc4 = 64;
+    else if (isNaN(chr3)) enc4 = 64;
+    output = output + key.charAt(enc1) + key.charAt(enc2) + key.charAt(enc3) + key.charAt(enc4);
+  }
+  return output;
+}
+var awesome = document.getElementById('awesome');
+      awesome.src = 'data:video/webm;base64,'+encode_64(generateEBML(EBML))
+    </script>
+  </body>
+</html>
