@@ -19,6 +19,19 @@
     <script src="schema.js"></script>
 <script src="lib.js"></script>
     <script>
+
+    window.requestAnimFrame = (function(){
+      return  window.requestAnimationFrame       || 
+              window.webkitRequestAnimationFrame || 
+              window.mozRequestAnimationFrame    || 
+              window.oRequestAnimationFrame      || 
+              window.msRequestAnimationFrame     || 
+              function( callback ){
+                window.setTimeout(callback, 1000 / 60);
+              };
+    })();
+ 
+
       var ctx = document.getElementById('arena').getContext('2d');
       var lines = [
           [10, 10, 10, 300],
@@ -114,8 +127,10 @@
         
         ctx.stroke();
 
-        return ctx.canvas.toDataURL('image/webp')
+        return ctx.canvas.toDataURL('image/webp', 0)
       }
+
+
 
 
         function parseRIFF(string){
@@ -170,62 +185,61 @@
 var webp = parseWebP(parseRIFF(atob(frame().slice(23))));
 var duration = 5000;
 var frames = 150;
-
       EBML = {
-  "EBML": [
-    {
-      "EBMLVersion": 1,
-      "EBMLReadVersion": 1,
-      "EBMLMaxIDLength": 4,
-      "EBMLMaxSizeLength": 8,
-      "DocType": "webm",
-      "DocTypeVersion": 2,
-      "DocTypeReadVersion": 2
-    }
-  ],
-  "Segment": [
-    {
-      "Info": [
-        {
-          "TimecodeScale": 1000000, //do things in milliseconds (number of nanosecs for duration scale)
-          "MuxingApp": "Lavf53.21.0", //whatevs dont change wat aint broke
-          "WritingApp": "Lavf53.21.0",
-          "SegmentUID": "³Ñ^xì\u001añLl^;Y", //a  hundred twenty eight bits of random
-          "Duration": duration
-        }
-      ],
-      "Tracks": [
-        {
-          "TrackEntry": [
-            {
-              "TrackNumber": 1,
-              "TrackUID": 1,
-              "FlagLacing": 0,
-              "Language": "und",
-              "CodecID": "V_VP8",
-              "TrackType": 1,
-              "DefaultDuration": Math.round(1e6 * duration / frames), //83333333, //nanosecs per frame
-              "Video": {
-                "PixelWidth": webp.width,
-                "PixelHeight": webp.height,
-                "DisplayWidth": webp.width,
-                "DisplayHeight": webp.height,
-                "DisplayUnit": 3 //interpret as display aspect ratio
+    "EBML": [
+      {
+        "EBMLVersion": 1,
+        "EBMLReadVersion": 1,
+        "EBMLMaxIDLength": 4,
+        "EBMLMaxSizeLength": 8,
+        "DocType": "webm",
+        "DocTypeVersion": 2,
+        "DocTypeReadVersion": 2
+      }
+    ],
+    "Segment": [
+      {
+        "Info": [
+          {
+            "TimecodeScale": 1000000, //do things in milliseconds (number of nanosecs for duration scale)
+            "MuxingApp": "Lavf53.21.0", //whatevs dont change wat aint broke
+            "WritingApp": "Lavf53.21.0",
+            "SegmentUID": "³Ñ^xì\u001añLl^;Y", //a  hundred twenty eight bits of random
+            "Duration": duration
+          }
+        ],
+        "Tracks": [
+          {
+            "TrackEntry": [
+              {
+                "TrackNumber": 1,
+                "TrackUID": 1,
+                "FlagLacing": 0,
+                "Language": "und",
+                "CodecID": "V_VP8",
+                "TrackType": 1,
+                "DefaultDuration": Math.round(1e6 * duration / frames), //83333333, //nanosecs per frame
+                "Video": {
+                  "PixelWidth": webp.width,
+                  "PixelHeight": webp.height,
+                  "DisplayWidth": webp.width,
+                  "DisplayHeight": webp.height,
+                  "DisplayUnit": 3 //interpret as display aspect ratio
+                }
               }
-            }
-          ]
-        }
-      ],
-      "Cluster": [
-        {
-          "Timecode": 0,
-          "SimpleBlock": [
-          ]
-        }
-      ]
-    }
-  ]
-}
+            ]
+          }
+        ],
+        "Cluster": [
+          {
+            "Timecode": 0,
+            "SimpleBlock": [
+            ]
+          }
+        ]
+      }
+    ]
+  }
 
 
 function parseSimpleBlock(data){
@@ -277,7 +291,10 @@ function makeSimpleBlock(data){
 }
 
 
-for(var i = 0; i < frames; i++){
+var awesome = document.getElementById('awesome');
+
+var loopnum = 0;
+function addFrame(){
   var webp = parseWebP(parseRIFF(atob(frame().slice(23))))
   EBML.Segment[0].Cluster[0].SimpleBlock.push(makeSimpleBlock({
     discardable: 0,
@@ -285,11 +302,24 @@ for(var i = 0; i < frames; i++){
     invisible: 0,
     keyframe: 1,
     lacing: 0,
-    timecode: Math.round(i / frames * duration),
+    timecode: Math.round(loopnum / frames * duration),
     trackNum: 1
   }))
-  
+  if(loopnum == frames){
+    var video = generateEBML(EBML);
+    console.log(video.length)
+    awesome.src = 'data:video/webm;base64,'+encode_64(video);
+  }else{
+    loopnum++;
+    //setTimeout(addFrame, 100)
+    requestAnimFrame(addFrame)
+  }
 }
+
+addFrame();
+
+
+
 
 
 function encode_64(input) {
@@ -310,8 +340,6 @@ function encode_64(input) {
   }
   return output;
 }
-var awesome = document.getElementById('awesome');
-      awesome.src = 'data:video/webm;base64,'+encode_64(generateEBML(EBML))
     </script>
   </body>
 </html>
