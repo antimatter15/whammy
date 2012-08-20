@@ -148,8 +148,7 @@ var Whammy = (function(){
 				]
 			}
 		];
-		var video = generateEBML(EBML);
-		return 'data:video/webm;base64,' + btoa(video);
+		return generateEBML(EBML)
 	}
 
 	// sums the lengths of all the frames and gets the duration, woo
@@ -173,9 +172,79 @@ var Whammy = (function(){
 
 	// here is something else taken from weppy more or less unharmed
 
+
+	function bitsToBuffer(bits){
+		var data = [];
+		var pad = (bits.length % 8) ? (new Array(1 + 8 - (bits.length % 8))).join('0') : '';
+		bits = pad + bits;
+		for(var i = 0; i < bits.length; i+= 8){
+			data.push(parseInt(bits.substr(i,8),2))
+		}
+		return new Uint8Array(data);
+	}
+
+
+	function numToBuffer(num){
+		var parts = [];
+		while(num > 0){
+			parts.push(num & 0xff)
+			num = num >> 8
+		}
+		return new Uint8Array(parts.reverse());
+	}
+
+	function strToBuffer(str){
+		// return new Blob([str]);
+
+		var arr = new Uint8Array(str.length);
+		for(var i = 0; i < str.length; i++){
+			arr[i] = str.charCodeAt(i)
+		}
+		return arr;
+		// this is slower
+		// return new Uint8Array(str.split('').map(function(e){
+		// 	return e.charCodeAt(0)
+		// }))
+	}
+	function generateEBML(json){
+		var ebml = [];
+		for(var i = 0; i < json.length; i++){
+			var data = json[i].data;
+			// console.log(data);
+			if(typeof data == 'object') data = generateEBML(data);
+			if(typeof data == 'number') data = bitsToBuffer(data.toString(2));
+			if(typeof data == 'string') data = strToBuffer(data);
+			// console.log(data)
+
+			var len = data.size || data.byteLength;
+			var zeroes = Math.ceil(Math.ceil(Math.log(len)/Math.log(2))/8);
+			var size_str = len.toString(2);
+			var padded = (new Array((zeroes * 7 + 7 + 1) - size_str.length)).join('0') + size_str;
+			var size = (new Array(zeroes)).join('0') + '1' + padded;
+			
+			//i actually dont quite understand what went on up there, so I'm not really
+			//going to fix this, i'm probably just going to write some hacky thing which
+			//converts that string into a buffer-esque thing
+
+			ebml.push(numToBuffer(json[i].id));
+			ebml.push(bitsToBuffer(size));
+			ebml.push(data)
+			
+
+		}
+		return new Blob(ebml, {
+			type: "video/webm"
+		});
+	}
+
+	//OKAY, so the following two functions are the string-based old stuff, the reason they're
+	//still sort of in here, is that they're actually faster than the new blob stuff because
+	//getAsFile isn't widely implemented, or at least, it doesn't work in chrome, which is the
+	// only browser which supports get as webp
+
 	//Converting between a string of 0010101001's and binary back and forth is probably inefficient
 	//TODO: get rid of this function
-	function toBinStr(bits){
+	function toBinStr_old(bits){
 		var data = '';
 		var pad = (bits.length % 8) ? (new Array(1 + 8 - (bits.length % 8))).join('0') : '';
 		bits = pad + bits;
@@ -185,12 +254,12 @@ var Whammy = (function(){
 		return data;
 	}
 
-	function generateEBML(json){
+	function generateEBML_old(json){
 		var ebml = '';
 		for(var i = 0; i < json.length; i++){
 			var data = json[i].data;
-			if(typeof data == 'object') data = generateEBML(data);
-			if(typeof data == 'number') data = toBinStr(data.toString(2));
+			if(typeof data == 'object') data = generateEBML_old(data);
+			if(typeof data == 'number') data = toBinStr_old(data.toString(2));
 			
 			var len = data.length;
 			var zeroes = Math.ceil(Math.ceil(Math.log(len)/Math.log(2))/8);
@@ -198,11 +267,12 @@ var Whammy = (function(){
 			var padded = (new Array((zeroes * 7 + 7 + 1) - size_str.length)).join('0') + size_str;
 			var size = (new Array(zeroes)).join('0') + '1' + padded;
 
-			ebml += toBinStr(json[i].id.toString(2)) + toBinStr(size) + data;
+			ebml += toBinStr_old(json[i].id.toString(2)) + toBinStr_old(size) + data;
 
 		}
 		return ebml;
 	}
+
 	//woot, a function that's actually written for this project!
 	//this parses some json markup and makes it into that binary magic
 	//which can then get shoved into the matroska comtainer (peaceably)
@@ -295,6 +365,31 @@ var Whammy = (function(){
 			.join('') // join the bytes in holy matrimony as a string
 	}
 
+	function toDataURL(video){
+		return 'data:video/webm;base64,' + btoa(video);
+	}
+
+	function WhammyOutput(str){
+		this.str = str;
+		this.size = str.length;
+	}
+	WhammyOutput.prototype.toBlob = function(){
+		return new Blob([this.str], {
+			type: "video/webm"
+		});
+	}
+	WhammyOutput.prototype.toObjectURL = function(){
+		return (window.URL || window.webkitURL).createObjectURL(this.toBlob())
+	}
+	WhammyOutput.prototype.toDataURL = function(){
+		return toDataURL(this.str)
+	}
+	WhammyOutput.prototype.toString = function(){
+		return this.toObjectURL(); // TODO: fall back to data urls
+		// return this.toDataURL()
+	}
+
+
 	function WhammyVideo(speed, quality){ // a more abstract-ish API
 		this.frames = [];
 		this.duration = 1000 / speed;
@@ -321,22 +416,24 @@ var Whammy = (function(){
 	}
 	
 	WhammyVideo.prototype.compile = function(){
-		return toWebM(this.frames.map(function(frame){
+		return new WhammyOutput(toWebM(this.frames.map(function(frame){
 			var webp = parseWebP(parseRIFF(atob(frame.image.slice(23))));
 			webp.duration = frame.duration;
 			return webp;
-		}))
+		})))
 	}
+
 	return {
 		Video: WhammyVideo,
 		fromImageArray: function(images, fps){
-			return toWebM(images.map(function(image){
+			return toDataURL(toWebM(images.map(function(image){
 				var webp = parseWebP(parseRIFF(atob(image.slice(23))))
 				webp.duration = 1000 / fps;
 				return webp;
-			}))
+			})))
 		},
-		toWebM: toWebM
+		toWebM: toWebM,
+		toDataURL: toDataURL
 		// expose methods of madness
 	}
 })()
