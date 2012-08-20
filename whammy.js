@@ -170,19 +170,6 @@ var Whammy = (function(){
 		};
 	}
 
-	// here is something else taken from weppy more or less unharmed
-
-
-	function bitsToBuffer(bits){
-		var data = [];
-		var pad = (bits.length % 8) ? (new Array(1 + 8 - (bits.length % 8))).join('0') : '';
-		bits = pad + bits;
-		for(var i = 0; i < bits.length; i+= 8){
-			data.push(parseInt(bits.substr(i,8),2))
-		}
-		return new Uint8Array(data);
-	}
-
 
 	function numToBuffer(num){
 		var parts = [];
@@ -206,6 +193,23 @@ var Whammy = (function(){
 		// 	return e.charCodeAt(0)
 		// }))
 	}
+
+
+
+	//sorry this is ugly, and sort of hard to understand exactly why this was done
+	// at all really, but the reason is that there's some code below that i dont really
+	// feel like understanding, and this is easier than using my brain.
+
+	function bitsToBuffer(bits){
+		var data = [];
+		var pad = (bits.length % 8) ? (new Array(1 + 8 - (bits.length % 8))).join('0') : '';
+		bits = pad + bits;
+		for(var i = 0; i < bits.length; i+= 8){
+			data.push(parseInt(bits.substr(i,8),2))
+		}
+		return new Uint8Array(data);
+	}
+
 	function generateEBML(json){
 		var ebml = [];
 		for(var i = 0; i < json.length; i++){
@@ -365,31 +369,6 @@ var Whammy = (function(){
 			.join('') // join the bytes in holy matrimony as a string
 	}
 
-	function toDataURL(video){
-		return 'data:video/webm;base64,' + btoa(video);
-	}
-
-	function WhammyOutput(str){
-		this.str = str;
-		this.size = str.length;
-	}
-	WhammyOutput.prototype.toBlob = function(){
-		return new Blob([this.str], {
-			type: "video/webm"
-		});
-	}
-	WhammyOutput.prototype.toObjectURL = function(){
-		return (window.URL || window.webkitURL).createObjectURL(this.toBlob())
-	}
-	WhammyOutput.prototype.toDataURL = function(){
-		return toDataURL(this.str)
-	}
-	WhammyOutput.prototype.toString = function(){
-		return this.toObjectURL(); // TODO: fall back to data urls
-		// return this.toDataURL()
-	}
-
-
 	function WhammyVideo(speed, quality){ // a more abstract-ish API
 		this.frames = [];
 		this.duration = 1000 / speed;
@@ -416,24 +395,23 @@ var Whammy = (function(){
 	}
 	
 	WhammyVideo.prototype.compile = function(){
-		return new WhammyOutput(toWebM(this.frames.map(function(frame){
+		return new toWebM(this.frames.map(function(frame){
 			var webp = parseWebP(parseRIFF(atob(frame.image.slice(23))));
 			webp.duration = frame.duration;
 			return webp;
-		})))
+		}))
 	}
 
 	return {
 		Video: WhammyVideo,
 		fromImageArray: function(images, fps){
-			return toDataURL(toWebM(images.map(function(image){
+			return toWebM(images.map(function(image){
 				var webp = parseWebP(parseRIFF(atob(image.slice(23))))
 				webp.duration = 1000 / fps;
 				return webp;
-			})))
+			}))
 		},
-		toWebM: toWebM,
-		toDataURL: toDataURL
+		toWebM: toWebM
 		// expose methods of madness
 	}
 })()
