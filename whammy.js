@@ -137,7 +137,7 @@ function generateWebM(images, fps) {
 					"CodecID": "V_VP8",
 					"CodecName": "VP8",
 					"TrackType": 1,
-					"DefaultDuration": Math.round(1e6 * frameLength), //nanosecs per frame
+					// "DefaultDuration": Math.round(1e6 * frameLength), //nanosecs per frame
 					"Video": {
 						"PixelWidth": firstImage.width,
 						"PixelHeight": firstImage.height,
@@ -170,3 +170,4 @@ function generateWebM(images, fps) {
 	var video = generateEBML(EBML);
 	return 'data:video/webm;base64,' + btoa(video);
 }
+

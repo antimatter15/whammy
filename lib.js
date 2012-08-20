@@ -238,7 +238,7 @@ function generateEBML(json){
     var el_len = json[i].pop ? json[i].length : 1;
     for(var k = 0; k < el_len; k++){
       var data = json[i].pop ? json[i][k] : json[i];
-      //console.log(i,k,data);
+      console.log(i,k,data);
       var hexid = nameHexMap[i] || i;
       var type = schema[hexid].type
       if(typeof data == 'object'){
@@ -276,3 +276,81 @@ function generateEBML(json){
   return ebml;
 }
 
+/*
+
+
+var vEBML = {
+  "EBML": [{
+    "EBMLVersion": 1,
+    "EBMLReadVersion": 1,
+    "EBMLMaxIDLength": 4,
+    "EBMLMaxSizeLength": 8,
+    "DocType": "webm",
+    "DocTypeVersion": 2,
+    "DocTypeReadVersion": 2
+  }],
+  "Segment": [{
+    "Info": [{
+      "TimecodeScale": 1e6, //do things in milliseconds (number of nanosecs for duration scale)
+      "MuxingApp": "whammy",
+      "WritingApp": "whammy",
+      "Duration": 420 //milliseconds total
+    }],
+    "Tracks": [{
+      "TrackEntry": [{
+        "TrackNumber": 1,
+        "TrackUID": 1,
+        "FlagLacing": 0,
+        "Language": "und",
+        "CodecID": "V_VP8",
+        "CodecName": "VP8",
+        "TrackType": 1,
+        "DefaultDuration": 42, //nanosecs per frame
+        "Video": {
+          "PixelWidth": 1337,
+          "PixelHeight": 1996,
+        }
+      }]
+    }],
+    "Cluster": [{
+      "Timecode": 0,
+      "SimpleBlock": "pony"
+    }]
+  }]
+};
+
+function simplify(json){
+  var ebml = [];
+  for(var i in json){
+    var el_len = json[i].pop ? json[i].length : 1;
+    for(var k = 0; k < el_len; k++){
+      var data = json[i].pop ? json[i][k] : json[i];
+      //console.log(i,k,data);
+      var hexid = nameHexMap[i] || i;
+      var type = schema[hexid].type
+      if(typeof data == 'object'){
+        
+        //recurse
+        //normal object yay
+        // ebml.push(simplify(data));
+        ebml.push({
+          hex: hexid,
+          name: i,
+          data: simplify(data)
+        })
+      }else{
+        console.log(data)
+        ebml.push({
+
+          name: i,
+          data: data,
+          hex: hexid
+        })
+      }
+    }
+  }
+  return ebml;
+}
+
+
+*/

@@ -19,7 +19,10 @@
 <script src="schema.js"></script>
 <script src="lib.js"></script>
 <script src="whammy.js"></script>
+<script src="api.js"></script>
+
 <script>
+
 
     window.requestAnimFrame = (function(){
       return  window.requestAnimationFrame       || 
@@ -147,7 +150,7 @@ function addFrame(){
     var timeElapsed = Date.now() - start;
     var fps = frames / (timeElapsed / 1000);
     
-    var video = generateWebM(images, fps);
+    var video = Whammy.generateWebM(images, fps);
     awesome.src = video;
   }else{
     loopnum++;
