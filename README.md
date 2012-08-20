@@ -1,6 +1,5 @@
-# Whammy
-## A Real Time Javascript WebM Encoder [^*]
-[^*]: with caveats
+# Whammy: A Real Time Javascript WebM Encoder [^1]
+[^1]: with caveats
 
 ![screenshot of Weppy, two clocks with the one on the right embedded inside a video while the left is made in canvas, above the clocks is a progress bar at 100% and below the clocks is a status which reads "Compiled video in 17ms, file size 272KB" adjacent to a link titled "Download WebM"](https://raw.github.com/antimatter15/whammy/master/screenshot.png)
 
