@@ -1,173 +1,342 @@
-function parseRIFF(string){
-	var offset = 0;
-	var chunks = {};
-	
-	while (offset < string.length) {
-		var id = string.substr(offset, 4);
-		var len = parseInt(string.substr(offset + 4, 4).split('').map(function(i){
-			var unpadded = i.charCodeAt(0).toString(2);
-			return (new Array(8 - unpadded.length + 1)).join('0') + unpadded
-		}).join(''),2);
-		var data = string.substr(offset + 4 + 4, len);
-		offset += 4 + 4 + len;
-		chunks[id] = chunks[id] || [];
+/*
+	var vid = new Whammy.Video();
+	vid.add(canvas or data url)
+	vid.compile()
+*/
+
+
+var Whammy = (function(){
+	// in this case, frames has a very specific meaning, which will be 
+	// detailed once i finish writing the code
+
+	function toWebM(frames){
+		var info = checkFrames(frames);
+		var counter = 0;
+		var EBML = [
+			{
+				"id": 0x1a45dfa3, // EBML
+				"data": [
+					{ 
+						"data": 1,
+						"id": 0x4286 // EBMLVersion
+					},
+					{ 
+						"data": 1,
+						"id": 0x42f7 // EBMLReadVersion
+					},
+					{ 
+						"data": 4,
+						"id": 0x42f2 // EBMLMaxIDLength
+					},
+					{ 
+						"data": 8,
+						"id": 0x42f3 // EBMLMaxSizeLength
+					},
+					{ 
+						"data": "webm",
+						"id": 0x4282 // DocType
+					},
+					{ 
+						"data": 2,
+						"id": 0x4287 // DocTypeVersion
+					},
+					{ 
+						"data": 2,
+						"id": 0x4285 // DocTypeReadVersion
+					}
+				]
+			},
+			{
+				"id": 0x18538067, // Segment
+				"data": [
+					{ 
+						"id": 0x1549a966, // Info
+						"data": [
+							{  
+								"data": 1e6, //do things in millisecs (num of nanosecs for duration scale)
+								"id": 0x2ad7b1 // TimecodeScale
+							},
+							{ 
+								"data": "whammy",
+								"id": 0x4d80 // MuxingApp
+							},
+							{ 
+								"data": "whammy",
+								"id": 0x5741 // WritingApp
+							},
+							{ 
+								"data": doubleToString(info.duration),
+								"id": 0x4489 // Duration
+							}
+						]
+					},
+					{
+						"id": 0x1654ae6b, // Tracks
+						"data": [
+							{
+								"id": 0xae, // TrackEntry
+								"data": [
+									{  
+										"data": 1,
+										"id": 0xd7 // TrackNumber
+									},
+									{ 
+										"data": 1,
+										"id": 0x63c5 // TrackUID
+									},
+									{ 
+										"data": 0,
+										"id": 0x9c // FlagLacing
+									},
+									{ 
+										"data": "und",
+										"id": 0x22b59c // Language
+									},
+									{ 
+										"data": "V_VP8",
+										"id": 0x86 // CodecID
+									},
+									{ 
+										"data": "VP8",
+										"id": 0x258688 // CodecName
+									},
+									{ 
+										"data": 1,
+										"id": 0x83 // TrackType
+									},
+									{
+										"id": 0xe0,  // Video
+										"data": [
+											{
+												"data": info.width,
+												"id": 0xb0 // PixelWidth
+											},
+											{ 
+												"data": info.height,
+												"id": 0xba // PixelHeight
+											}
+										]
+									}
+								]
+							}
+						]
+					},
+					{
+						"id": 0x1f43b675, // Cluster
+						"data": [
+							{  
+								"data": 0,
+								"id": 0xe7 // Timecode
+							}
+						].concat(frames.map(function(webp){
+							var block = makeSimpleBlock({
+								discardable: 0,
+								frame: webp.data.slice(4),
+								invisible: 0,
+								keyframe: 1,
+								lacing: 0,
+								trackNum: 1,
+								timecode: Math.round(counter)
+							});
+							counter += webp.duration;
+							return {
+								data: block,
+								id: 0xa3
+							};
+						}))
+					}
+				]
+			}
+		];
+		var video = generateEBML(EBML);
+		return 'data:video/webm;base64,' + btoa(video);
+	}
+
+	// sums the lengths of all the frames and gets the duration, woo
+
+	function checkFrames(frames){
+		var width = frames[0].width, 
+			height = frames[0].height, 
+			duration = frames[0].duration;
+		for(var i = 1; i < frames.length; i++){
+			if(frames[i].width != width) throw "Frame " + (i + 1) + " has a different width";
+			if(frames[i].height != height) throw "Frame " + (i + 1) + " has a different height";
+			if(frames[i].duration < 0) throw "Frame " + (i + 1) + " has a weird duration";
+			duration += frames[i].duration;
+		}
+		return {
+			duration: duration,
+			width: width,
+			height: height
+		};
+	}
+
+	// here is something else taken from weppy more or less unharmed
+
+	//Converting between a string of 0010101001's and binary back and forth is probably inefficient
+	//TODO: get rid of this function
+	function toBinStr(bits){
+		var data = '';
+		var pad = (bits.length % 8) ? (new Array(1 + 8 - (bits.length % 8))).join('0') : '';
+		bits = pad + bits;
+		for(var i = 0; i < bits.length; i+= 8){
+			data += String.fromCharCode(parseInt(bits.substr(i,8),2))
+		}
+		return data;
+	}
+
+	function generateEBML(json){
+		var ebml = '';
+		for(var i = 0; i < json.length; i++){
+			var data = json[i].data;
+			if(typeof data == 'object') data = generateEBML(data);
+			if(typeof data == 'number') data = toBinStr(data.toString(2));
+			
+			var len = data.length;
+			var zeroes = Math.ceil(Math.ceil(Math.log(len)/Math.log(2))/8);
+			var size_str = len.toString(2);
+			var padded = (new Array((zeroes * 7 + 7 + 1) - size_str.length)).join('0') + size_str;
+			var size = (new Array(zeroes)).join('0') + '1' + padded;
+
+			ebml += toBinStr(json[i].id.toString(2)) + toBinStr(size) + data;
+
+		}
+		return ebml;
+	}
+	//woot, a function that's actually written for this project!
+	//this parses some json markup and makes it into that binary magic
+	//which can then get shoved into the matroska comtainer (peaceably)
+
+	function makeSimpleBlock(data){
+		var flags = 0;
+		if (data.keyframe) flags |= 128;
+		if (data.invisible) flags |= 8;
+		if (data.lacing) flags |= (data.lacing << 1);
+		if (data.discardable) flags |= 1;
+		if (data.trackNum > 127) {
+			throw "TrackNumber > 127 not supported";
+		}
+		var out = [data.trackNum | 0x80, data.timecode >> 8, data.timecode & 0xff, flags].map(function(e){
+			return String.fromCharCode(e)
+		}).join('') + data.frame;
+
+		return out;
+	}
+
+	// here's something else taken verbatim from weppy, awesome rite?
+
+	function parseWebP(riff){
+		var VP8 = riff.RIFF[0].WEBP[0];
 		
-		if (id == 'RIFF' || id == 'LIST') {
-			chunks[id].push(parseRIFF(data));
-		} else {
-			chunks[id].push(data);
+		var frame_start = VP8.indexOf('\x9d\x01\x2a'); //A VP8 keyframe starts with the 0x9d012a header
+		for(var i = 0, c = []; i < 4; i++) c[i] = VP8.charCodeAt(frame_start + 3 + i);
+		
+		var width, horizontal_scale, height, vertical_scale, tmp;
+		
+		//the code below is literally copied verbatim from the bitstream spec
+		tmp = (c[1] << 8) | c[0];
+		width = tmp & 0x3FFF;
+		horizontal_scale = tmp >> 14;
+		tmp = (c[3] << 8) | c[2];
+		height = tmp & 0x3FFF;
+		vertical_scale = tmp >> 14;
+		return {
+			width: width,
+			height: height,
+			data: VP8,
+			riff: riff
 		}
 	}
-	return chunks;
-}
 
+	// i think i'm going off on a riff by pretending this is some known
+	// idiom which i'm making a casual and brilliant pun about, but since
+	// i can't find anything on google which conforms to this idiomatic
+	// usage, I'm assuming this is just a consequence of some psychotic
+	// break which makes me make up puns. well, enough riff-raff (aha a
+	// rescue of sorts), this function was ripped wholesale from weppy
 
+	function parseRIFF(string){
+		var offset = 0;
+		var chunks = {};
+		
+		while (offset < string.length) {
+			var id = string.substr(offset, 4);
+			var len = parseInt(string.substr(offset + 4, 4).split('').map(function(i){
+				var unpadded = i.charCodeAt(0).toString(2);
+				return (new Array(8 - unpadded.length + 1)).join('0') + unpadded
+			}).join(''),2);
+			var data = string.substr(offset + 4 + 4, len);
+			offset += 4 + 4 + len;
+			chunks[id] = chunks[id] || [];
+			
+			if (id == 'RIFF' || id == 'LIST') {
+				chunks[id].push(parseRIFF(data));
+			} else {
+				chunks[id].push(data);
+			}
+		}
+		return chunks;
+	}
 
-function parseWebP(riff){
-	var VP8 = riff.RIFF[0].WEBP[0];
+	// here's a little utility function that acts as a utility for other functions
+	// basically, the only purpose is for encoding "Duration", which is encoded as
+	// a double (considerably more difficult to encode than an integer)
+	function doubleToString(num){
+		return [].slice.call(
+			new Uint8Array(
+				(
+					new Float64Array([num]) //create a float64 array
+				).buffer) //extract the array buffer
+			, 0) // convert the Uint8Array into a regular array
+			.map(function(e){ //since it's a regular array, we can now use map
+				return String.fromCharCode(e) // encode all the bytes individually
+			})
+			.reverse() //correct the byte endianness (assume it's little endian for now)
+			.join('') // join the bytes in holy matrimony as a string
+	}
+
+	function WhammyVideo(speed, quality){ // a more abstract-ish API
+		this.frames = [];
+		this.duration = 1000 / speed;
+		this.quality = quality || 0.8;
+	}
+
+	WhammyVideo.prototype.add = function(frame, duration){
+		if(typeof duration != 'undefined' && this.duration) throw "you can't pass a duration if the fps is set";
+		if('canvas' in frame){ //CanvasRenderingContext2D
+			frame = frame.canvas;	
+		}
+		if('toDataURL' in frame){
+			frame = frame.toDataURL('image/webp', this.quality)
+		}else if(typeof frame != "string"){
+			throw "frame must be a a HTMLCanvasElement, a CanvasRenderingContext2D or a DataURI formatted string"
+		}
+		if (!(/^data:image\/webp;base64,/ig).test(frame)) {
+			throw "Input must be formatted properly as a base64 encoded DataURI of type image/webp";
+		}
+		this.frames.push({
+			image: frame,
+			duration: duration || this.duration
+		})
+	}
 	
-	var frame_start = VP8.indexOf('\x9d\x01\x2a'); //A VP8 keyframe starts with the 0x9d012a header
-	for(var i = 0, c = []; i < 4; i++) c[i] = VP8.charCodeAt(frame_start + 3 + i);
-	
-	var width, horizontal_scale, height, vertical_scale, tmp;
-	
-	//the code below is literally copied verbatim from the bitstream spec
-	tmp = (c[1] << 8) | c[0];
-	width = tmp & 0x3FFF;
-	horizontal_scale = tmp >> 14;
-	tmp = (c[3] << 8) | c[2];
-	height = tmp & 0x3FFF;
-	vertical_scale = tmp >> 14;
+	WhammyVideo.prototype.compile = function(){
+		return toWebM(this.frames.map(function(frame){
+			var webp = parseWebP(parseRIFF(atob(frame.image.slice(23))));
+			webp.duration = frame.duration;
+			return webp;
+		}))
+	}
 	return {
-		width: width,
-		height: height,
-		data: VP8,
-		riff: riff
+		Video: WhammyVideo,
+		fromImageArray: function(images, fps){
+			return toWebM(images.map(function(image){
+				var webp = parseWebP(parseRIFF(atob(image.slice(23))))
+				webp.duration = 1000 / fps;
+				return webp;
+			}))
+		},
+		toWebM: toWebM
+		// expose methods of madness
 	}
-}
-  
-function parseSimpleBlock(data){
-	if (data.length < 4) {
-		throw "Invalid Simple Block";
-	}
-	var buf = data.substr(0,4).split('').map(function(e){
-		return e.charCodeAt(0)
-	});
-	if ((buf[0] & 0x80) != 0x80){
-		throw "Invalid Simple Block: TrackNumber > 127 not supported";
-	}
-	var trackNum = buf[0] & 0x7f;
-	var timecode = buf[1] << 8 | buf[2];
-	var flags = buf[3] & 0xff;
-	var keyframe = flags >> 7;
-	var invisible = ((flags >> 3) & 0x1);
-	var discardable = (flags  & 0x1);
-	var lacing = (flags >> 1) & 0x3;
-	//0 = no lacing, 1 = xiph lacing, 2 = fixed-size lacing, 3 = ebml lacing
-
-	return {
-		trackNum: trackNum,
-		timecode: timecode,
-		lacing: lacing,
-		discardable: discardable,
-		invisible: invisible,
-		keyframe: keyframe,
-		frame: data.substr(4)
-	}
-}
-
-
-function makeSimpleBlock(data){
-	var flags = 0;
-	if (data.keyframe) flags |= 128;
-	if (data.invisible) flags |= 8;
-	if (data.lacing) flags |= (data.lacing << 1);
-	if (data.discardable) flags |= 1;
-	if (data.trackNum > 127) {
-		throw "TrackNumber > 127 not supported";
-	}
-	var out = [data.trackNum | 0x80, data.timecode >> 8, data.timecode & 0xff, flags].map(function(e){
-		return String.fromCharCode(e)
-	}).join('') + data.frame;
-
-	return out;
-}
-
-// actually there are some nice docs
-// webm: http://www.webmproject.org/code/specs/container/
-// matroska: http://www.matroska.org/technical/specs/index.html
-
-/**
- * @param {String[]} images An array of WebP images as data URIs
- * @param {number} fps The number of frames per second for encoding
- * @return {String} The WebM video as a data URI
- */
-function generateWebM(images, fps) {
-	var firstImage = images[0];
-	if (!(/^data:image\/webp;base64,/ig).test(firstImage)) {
-		throw "Invalid input";
-	}
-	firstImage = parseWebP(parseRIFF(atob(firstImage.slice(23))));
-	
-	var frameLength = 1000 / fps, numImages = images.length;
-	
-	var EBML = {
-		"EBML": [{
-			"EBMLVersion": 1,
-			"EBMLReadVersion": 1,
-			"EBMLMaxIDLength": 4,
-			"EBMLMaxSizeLength": 8,
-			"DocType": "webm",
-			"DocTypeVersion": 2,
-			"DocTypeReadVersion": 2
-		}],
-		"Segment": [{
-			"Info": [{
-				"TimecodeScale": 1e6, //do things in milliseconds (number of nanosecs for duration scale)
-				"MuxingApp": "whammy",
-				"WritingApp": "whammy",
-				"Duration": Math.round(frameLength * numImages) //milliseconds total
-			}],
-			"Tracks": [{
-				"TrackEntry": [{
-					"TrackNumber": 1,
-					"TrackUID": 1,
-					"FlagLacing": 0,
-					"Language": "und",
-					"CodecID": "V_VP8",
-					"CodecName": "VP8",
-					"TrackType": 1,
-					// "DefaultDuration": Math.round(1e6 * frameLength), //nanosecs per frame
-					"Video": {
-						"PixelWidth": firstImage.width,
-						"PixelHeight": firstImage.height,
-						//"DisplayWidth": firstImage.width,
-						//"DisplayHeight": firstImage.height,
-						//"DisplayUnit": 3
-					}
-				}]
-			}],
-			"Cluster": [{
-				"Timecode": 0,
-				"SimpleBlock": []
-			}]
-		}]
-	};
-	
-	images.forEach(function(image, i) {
-		var webp = parseWebP(parseRIFF(atob(image.slice(23))))
-		EBML.Segment[0].Cluster[0].SimpleBlock.push(makeSimpleBlock({
-			discardable: 0,
-			frame: webp.data.substr(4),
-			invisible: 0,
-			keyframe: 1,
-			lacing: 0,
-			timecode: Math.round(i * frameLength),
-			trackNum: 1
-		}));
-	});
-	
-	var video = generateEBML(EBML);
-	return 'data:video/webm;base64,' + btoa(video);
-}
-
+})()
