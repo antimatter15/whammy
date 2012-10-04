@@ -2,7 +2,7 @@
 
 \* with caveats
 
-![screenshot of Weppy, two clocks with the one on the right embedded inside a video while the left is made in canvas, above the clocks is a progress bar at 100% and below the clocks is a status which reads "Compiled video in 17ms, file size 272KB" adjacent to a link titled "Download WebM"](https://raw.github.com/antimatter15/whammy/master/screenshot.png)
+![screenshot of Weppy, two clocks with the one on the right embedded inside a video while the left is made in canvas, above the clocks is a progress bar at 100% and below the clocks is a status which reads "Compiled video in 17ms, file size 272KB" adjacent to a link titled "Download WebM"](https://github.com/sysord/whammy/blob/master/screenshot.png?raw=true)
 
 This is sort of a conceptual reversal (or not, this might just be making the description needlessly confusing) of one of my older projects, [Weppy](https://github.com/antimatter15/weppy). First, what Weppy did was it added support for WebP in browsers which didn't support it by converting it into a single-frame video. This is instead predicated on the assumption that the browser already has support for WebP (at this point, it means it only works on Chrome since it's the only browser which actually supports WebP), not only decoding WebP but encoding it as well.
 
@@ -15,6 +15,8 @@ But, there isn't too much you can do on the client side in the ways of encoding 
 ## Demo
 
 http://antimatter15.github.com/whammy/clock.html
+
+http://www.sysord.fr/Sysord/ressource_whammy.jsf
 
 ## Basic Usage
 
