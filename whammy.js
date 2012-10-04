@@ -9,9 +9,12 @@ var Whammy = (function(){
 	// in this case, frames has a very specific meaning, which will be 
 	// detailed once i finish writing the code
 
-	function toWebM(frames){
+	function toWebM(frames, outputAsArray){
 		var info = checkFrames(frames);
-		var counter = 0;
+
+		//max duration by cluster in milliseconds
+		var CLUSTER_MAX_DURATION = 30000;
+		
 		var EBML = [
 			{
 				"id": 0x1a45dfa3, // EBML
@@ -121,34 +124,58 @@ var Whammy = (function(){
 							}
 						]
 					},
-					{
-						"id": 0x1f43b675, // Cluster
-						"data": [
-							{  
-								"data": 0,
-								"id": 0xe7 // Timecode
-							}
-						].concat(frames.map(function(webp){
-							var block = makeSimpleBlock({
-								discardable: 0,
-								frame: webp.data.slice(4),
-								invisible: 0,
-								keyframe: 1,
-								lacing: 0,
-								trackNum: 1,
-								timecode: Math.round(counter)
-							});
-							counter += webp.duration;
-							return {
-								data: block,
-								id: 0xa3
-							};
-						}))
-					}
+
+					//cluster insertion point
 				]
 			}
-		];
-		return generateEBML(EBML)
+		 ];
+
+						
+		//Generate clusters (max duration)
+		var frameNumber = 0;
+		var clusterTimecode = 0;
+		while(frameNumber < frames.length){
+			
+			var clusterFrames = [];
+			var clusterDuration = 0;
+			do {
+				clusterFrames.push(frames[frameNumber]);
+				clusterDuration += frames[frameNumber].duration;
+				frameNumber++;				
+			}while(frameNumber < frames.length && clusterDuration < CLUSTER_MAX_DURATION);
+						
+			var clusterCounter = 0;			
+			var cluster = {
+					"id": 0x1f43b675, // Cluster
+					"data": [
+						{  
+							"data": clusterTimecode,
+							"id": 0xe7 // Timecode
+						}
+					].concat(clusterFrames.map(function(webp){
+						var block = makeSimpleBlock({
+							discardable: 0,
+							frame: webp.data.slice(4),
+							invisible: 0,
+							keyframe: 1,
+							lacing: 0,
+							trackNum: 1,
+							timecode: Math.round(clusterCounter)
+						});
+						clusterCounter += webp.duration;
+						return {
+							data: block,
+							id: 0xa3
+						};
+					}))
+				}
+			
+			//Add cluster to segment
+			EBML[1].data.push(cluster);			
+			clusterTimecode += clusterDuration;
+		}
+						
+		return generateEBML(EBML, outputAsArray)
 	}
 
 	// sums the lengths of all the frames and gets the duration, woo
@@ -160,7 +187,7 @@ var Whammy = (function(){
 		for(var i = 1; i < frames.length; i++){
 			if(frames[i].width != width) throw "Frame " + (i + 1) + " has a different width";
 			if(frames[i].height != height) throw "Frame " + (i + 1) + " has a different height";
-			if(frames[i].duration < 0) throw "Frame " + (i + 1) + " has a weird duration";
+			if(frames[i].duration < 0 || frames[i].duration > 0x7fff) throw "Frame " + (i + 1) + " has a weird duration (must be between 0 and 32767)";
 			duration += frames[i].duration;
 		}
 		return {
@@ -195,7 +222,6 @@ var Whammy = (function(){
 	}
 
 
-
 	//sorry this is ugly, and sort of hard to understand exactly why this was done
 	// at all really, but the reason is that there's some code below that i dont really
 	// feel like understanding, and this is easier than using my brain.
@@ -210,17 +236,19 @@ var Whammy = (function(){
 		return new Uint8Array(data);
 	}
 
-	function generateEBML(json){
+	function generateEBML(json, outputAsArray){
 		var ebml = [];
 		for(var i = 0; i < json.length; i++){
 			var data = json[i].data;
-			// console.log(data);
-			if(typeof data == 'object') data = generateEBML(data);
+			if(typeof data == 'object') data = generateEBML(data, outputAsArray);					
 			if(typeof data == 'number') data = bitsToBuffer(data.toString(2));
 			if(typeof data == 'string') data = strToBuffer(data);
-			// console.log(data)
 
-			var len = data.size || data.byteLength;
+			if(data.length){
+				var z = z;
+			}
+			
+			var len = data.size || data.byteLength || data.length;
 			var zeroes = Math.ceil(Math.ceil(Math.log(len)/Math.log(2))/8);
 			var size_str = len.toString(2);
 			var padded = (new Array((zeroes * 7 + 7 + 1) - size_str.length)).join('0') + size_str;
@@ -236,11 +264,33 @@ var Whammy = (function(){
 			
 
 		}
-		return new Blob(ebml, {
-			type: "video/webm"
-		});
+		
+		//output as blob or byteArray
+		if(outputAsArray){
+			//convert ebml to an array
+			var buffer = toFlatArray(ebml)
+			return new Uint8Array(buffer);
+		}else{
+			return new Blob(ebml, {type: "video/webm"});
+		}
 	}
-
+	
+	function toFlatArray(arr, outBuffer){
+		if(outBuffer == null){
+			outBuffer = [];
+		}
+		for(var i = 0; i < arr.length; i++){
+			if(typeof arr[i] == 'object'){
+				//an array
+				toFlatArray(arr[i], outBuffer)
+			}else{
+				//a simple element
+				outBuffer.push(arr[i]);
+			}
+		}
+		return outBuffer;
+	}
+	
 	//OKAY, so the following two functions are the string-based old stuff, the reason they're
 	//still sort of in here, is that they're actually faster than the new blob stuff because
 	//getAsFile isn't widely implemented, or at least, it doesn't work in chrome, which is the
@@ -395,22 +445,22 @@ var Whammy = (function(){
 		})
 	}
 	
-	WhammyVideo.prototype.compile = function(){
+	WhammyVideo.prototype.compile = function(outputAsArray){
 		return new toWebM(this.frames.map(function(frame){
 			var webp = parseWebP(parseRIFF(atob(frame.image.slice(23))));
 			webp.duration = frame.duration;
 			return webp;
-		}))
+		}), outputAsArray)
 	}
 
 	return {
 		Video: WhammyVideo,
-		fromImageArray: function(images, fps){
+		fromImageArray: function(images, fps, outputAsArray){
 			return toWebM(images.map(function(image){
 				var webp = parseWebP(parseRIFF(atob(image.slice(23))))
 				webp.duration = 1000 / fps;
 				return webp;
-			}))
+			}), outputAsArray)
 		},
 		toWebM: toWebM
 		// expose methods of madness
