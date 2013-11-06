@@ -5,7 +5,7 @@
 */
 
 
-var Whammy = (function(){
+window.Whammy = (function(){
 	// in this case, frames has a very specific meaning, which will be 
 	// detailed once i finish writing the code
 
