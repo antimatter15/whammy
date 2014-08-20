@@ -1,0 +1,10 @@
+{
+  "name": "whammy",
+  "repository": "antimatter15/whammy",
+  "description": "Real-time Javascript Video Encoder",
+  "version": "0.0.1",
+  "keywords": ["video", "encoding", "vp8", "webm", "ebml", "riff", "webp", "codec", "browser", "chrome"],
+  "templates" : ["clock.html"],
+  "scripts": ["whammy.js"],
+  "license": "MIT"
+}
