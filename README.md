@@ -44,8 +44,8 @@ And you're done. Awesome.
 
 ## Documentation
 
-`Weppy.fromImageArray(image[], fps)` this is a simple function that takes a list of DataURL encoded frames and returns a WebM video. Note that the images have to all be encoded with WebP.
+`Whammy.fromImageArray(image[], fps)` this is a simple function that takes a list of DataURL encoded frames and returns a WebM video. Note that the images have to all be encoded with WebP.
 
-`new Weppy.Video(optional fps, optional quality)` this is the constructor for the main API. quality only applies if you're sending in contexts or canvas objects and doesn't matter if you're sending in encoded stuff
+`new Whammy.Video(optional fps, optional quality)` this is the constructor for the main API. quality only applies if you're sending in contexts or canvas objects and doesn't matter if you're sending in encoded stuff
 
 `.add(canvas or context or dataURL, optional duration)` if fps isn't specified in the constructor, you can stick a duration (in milliseconds) here.
