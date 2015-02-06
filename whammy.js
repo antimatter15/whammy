@@ -84,7 +84,7 @@ window.Whammy = (function(){
 									},
 									{
 										"data": 1,
-										"id": 0x63c5 // TrackUID
+										"id": 0x73c5 // TrackUID
 									},
 									{
 										"data": 0,
