@@ -460,9 +460,11 @@ window.Whammy = (function(){
 			} else if (id == 'WEBP') {
 				// Use (offset + 8) to skip past "VP8 "/"VP8L"/"VP8X" field after "WEBP"
 				chunks[id].push(string.substr(offset + 8));
+				offset = string.length;
 			} else {
 				// Unknown chunk type; push entire payload
 				chunks[id].push(string.substr(offset + 4));
+				offset = string.length;
 			}
 		}
 		return chunks;
