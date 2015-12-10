@@ -515,25 +515,47 @@ window.Whammy = (function(){
 		});
 	};
 
-	WhammyVideo.prototype.compile = function(outputAsArray){
+	// deferred webp encoding. Draws image data to canvas, then encodes as dataUrl
+	WhammyVideo.prototype.encodeFrames = function(callback){
 
-		// deferred webp encoding. Draws image data to canvas, then encodes as dataUrl
 		if(this.frames[0].image instanceof ImageData){
+
+			var frames = this.frames;
 			var tmpCanvas = document.createElement('canvas');
 			var tmpContext = tmpCanvas.getContext('2d');
 			tmpCanvas.width = this.frames[0].image.width;
 			tmpCanvas.height = this.frames[0].image.height;
-			this.frames.map(function(frame){
+
+			var encodeFrame = function(index){
+				console.log('encodeFrame', index);
+				var frame = frames[index];
 				tmpContext.putImageData(frame.image, 0, 0);
 				frame.image = tmpCanvas.toDataURL('image/webp', this.quality);
-			}.bind(this));
-		}
+				if(index < frames.length-1){
+					setTimeout(function(){ encodeFrame(index + 1); }, 1);
+				}else{
+					callback();
+				}
+			}.bind(this);
 
-		return new toWebM(this.frames.map(function(frame){
-			var webp = parseWebP(parseRIFF(atob(frame.image.slice(23))));
-			webp.duration = frame.duration;
-			return webp;
-		}), outputAsArray);
+			encodeFrame(0);
+		}else{
+			callback();
+		}
+	};
+
+	WhammyVideo.prototype.compile = function(outputAsArray, callback){
+
+		this.encodeFrames(function(){
+
+			var webm = new toWebM(this.frames.map(function(frame){
+				var webp = parseWebP(parseRIFF(atob(frame.image.slice(23))));
+				webp.duration = frame.duration;
+				return webp;
+			}), outputAsArray);
+			callback(webm);
+			
+		}.bind(this));
 	};
 
 	return {
