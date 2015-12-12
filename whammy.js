@@ -495,31 +495,68 @@ window.Whammy = (function(){
 
 	WhammyVideo.prototype.add = function(frame, duration){
 		if(typeof duration != 'undefined' && this.duration) throw "you can't pass a duration if the fps is set";
-		if(typeof duration == 'undefined' && !this.duration) throw "if you don't have the fps set, you ned to have durations here.";
+		if(typeof duration == 'undefined' && !this.duration) throw "if you don't have the fps set, you need to have durations here.";
 		if(frame.canvas){ //CanvasRenderingContext2D
 			frame = frame.canvas;
 		}
 		if(frame.toDataURL){
-			frame = frame.toDataURL('image/webp', this.quality)
+			// frame = frame.toDataURL('image/webp', this.quality);
+			// quickly store image data so we don't block cpu. encode in compile method.
+			frame = frame.getContext('2d').getImageData(0, 0, frame.width, frame.height);
 		}else if(typeof frame != "string"){
 			throw "frame must be a a HTMLCanvasElement, a CanvasRenderingContext2D or a DataURI formatted string"
 		}
-		if (!(/^data:image\/webp;base64,/ig).test(frame)) {
+		if (typeof frame === "string" && !(/^data:image\/webp;base64,/ig).test(frame)) {
 			throw "Input must be formatted properly as a base64 encoded DataURI of type image/webp";
 		}
 		this.frames.push({
 			image: frame,
 			duration: duration || this.duration
-		})
-	}
+		});
+	};
 
-	WhammyVideo.prototype.compile = function(outputAsArray){
-		return new toWebM(this.frames.map(function(frame){
-			var webp = parseWebP(parseRIFF(atob(frame.image.slice(23))));
-			webp.duration = frame.duration;
-			return webp;
-		}), outputAsArray)
-	}
+	// deferred webp encoding. Draws image data to canvas, then encodes as dataUrl
+	WhammyVideo.prototype.encodeFrames = function(callback){
+
+		if(this.frames[0].image instanceof ImageData){
+
+			var frames = this.frames;
+			var tmpCanvas = document.createElement('canvas');
+			var tmpContext = tmpCanvas.getContext('2d');
+			tmpCanvas.width = this.frames[0].image.width;
+			tmpCanvas.height = this.frames[0].image.height;
+
+			var encodeFrame = function(index){
+				console.log('encodeFrame', index);
+				var frame = frames[index];
+				tmpContext.putImageData(frame.image, 0, 0);
+				frame.image = tmpCanvas.toDataURL('image/webp', this.quality);
+				if(index < frames.length-1){
+					setTimeout(function(){ encodeFrame(index + 1); }, 1);
+				}else{
+					callback();
+				}
+			}.bind(this);
+
+			encodeFrame(0);
+		}else{
+			callback();
+		}
+	};
+
+	WhammyVideo.prototype.compile = function(outputAsArray, callback){
+
+		this.encodeFrames(function(){
+
+			var webm = new toWebM(this.frames.map(function(frame){
+				var webp = parseWebP(parseRIFF(atob(frame.image.slice(23))));
+				webp.duration = frame.duration;
+				return webp;
+			}), outputAsArray);
+			callback(webm);
+			
+		}.bind(this));
+	};
 
 	return {
 		Video: WhammyVideo,
