@@ -34,7 +34,7 @@ That `15` over there is the frame rate. There's a way to set the individual dura
 
 Here, you can add a frame, this happens fairly quickly because basically all it's doing is running `.toDataURL()` on the canvas (which isn't exactly a speed-demon either, but it's acceptable enough most of the time) and plopping the result onto an array (no computation or anything). The actual encoding only happens when you call `.compile()`
 
-	var output = encoder.compile();
+	encoder.compile(function(output){});
 
 Here, output is set to a Blob. In order to get a nice URL which you can use to stick in a `<video>` element, you need to send it over to `createObjectURL`
 
