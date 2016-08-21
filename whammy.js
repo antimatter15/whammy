@@ -4,7 +4,15 @@
 	vid.compile()
 */
 
-window.Whammy = (function(){
+(function (root, factory) {
+	if (typeof define === 'function' && define.amd) {
+		define([], factory);
+	} else if (typeof module === 'object' && module.exports) {
+		module.exports = factory();
+	} else {
+		root.Whammy = factory();
+	}
+}(this, function () {
 	// in this case, frames has a very specific meaning, which will be
 	// detailed once i finish writing the code
 
@@ -554,7 +562,7 @@ window.Whammy = (function(){
 				return webp;
 			}), outputAsArray);
 			callback(webm);
-			
+
 		}.bind(this));
 	};
 
@@ -570,4 +578,4 @@ window.Whammy = (function(){
 		toWebM: toWebM
 		// expose methods of madness
 	}
-})()
+}))
