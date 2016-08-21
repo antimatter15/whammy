@@ -189,7 +189,7 @@ window.Whammy = (function(){
 					].concat(clusterFrames.map(function(webp){
 						var block = makeSimpleBlock({
 							discardable: 0,
-							frame: webp.data.slice(4),
+							frame: webp.data.slice(webp.data.indexOf('\x9d\x01\x2a') - 3),
 							invisible: 0,
 							keyframe: 1,
 							lacing: 0,
