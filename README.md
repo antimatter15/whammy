@@ -37,7 +37,7 @@ Here, you can add a frame, this happens fairly quickly because basically all it'
 	encoder.compile(outputAsArray, function (output) {
         //outputAsArray is false -> output is a Blob (of "video/webm" type)
 	    //outputAsArray is true  -> output is an Uint8Array
-	});
+	}, frameEncodedCallback);
 
 Here, output is set to a Blob. In order to get a nice URL which you can use to stick in a `<video>` element, you need to send it over to `createObjectURL`
 
