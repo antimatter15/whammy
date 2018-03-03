@@ -4,7 +4,7 @@
 	vid.compile()
 */
 
-window.Whammy = (function(){
+const Whammy = (function(){
 	// in this case, frames has a very specific meaning, which will be
 	// detailed once i finish writing the code
 
@@ -487,7 +487,7 @@ window.Whammy = (function(){
 			.join('') // join the bytes in holy matrimony as a string
 	}
 
-	function WhammyVideo(speed, quality){ // a more abstract-ish API
+	function WhammyVideo(speed, quality) { // a more abstract-ish API
 		this.frames = [];
 		this.duration = 1000 / speed;
 		this.quality = quality || 0.8;
@@ -517,7 +517,6 @@ window.Whammy = (function(){
 
 	// deferred webp encoding. Draws image data to canvas, then encodes as dataUrl
 	WhammyVideo.prototype.encodeFrames = function(callback){
-
 		if(this.frames[0].image instanceof ImageData){
 
 			var frames = this.frames;
@@ -571,3 +570,5 @@ window.Whammy = (function(){
 		// expose methods of madness
 	}
 })()
+
+module.exports = Whammy
