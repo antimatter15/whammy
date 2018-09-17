@@ -40,7 +40,7 @@ var schema = {
     "type": "u"
   },
   "89": {
-    "desc": "UID of the Track to apply this chapter too. In the absense of a control track, choosing this chapter will select the listed Tracks and deselect unlisted tracks. Absense of this element indicates that the Chapter should be applied to any currently used Tracks.",
+    "desc": "UID of the Track to apply this chapter too. In the absence of a control track, choosing this chapter will select the listed Tracks and deselect unlisted tracks. absence of this element indicates that the Chapter should be applied to any currently used Tracks.",
     "name": "ChapterTrackNumber",
     "mu": true,
     "level": "5+",
@@ -184,7 +184,7 @@ var schema = {
     "type": "f"
   },
   "4598": {
-    "desc": "Specify wether the chapter is enabled. It can be enabled/disabled by a Control Track. When disabled, the movie should skip all the content between the TimeStart and TimeEnd of this chapter. (1 bit)",
+    "desc": "Specify whether the chapter is enabled. It can be enabled/disabled by a Control Track. When disabled, the movie should skip all the content between the TimeStart and TimeEnd of this chapter. (1 bit)",
     "name": "ChapterFlagEnabled",
     "mu": false,
     "level": "4+",
