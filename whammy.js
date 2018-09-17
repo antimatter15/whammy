@@ -493,6 +493,8 @@ window.Whammy = (function(){
 		this.quality = quality || 0.8;
 	}
 
+	var webpUrlRegex = /^data:image\/webp;base64,/ig;
+
 	WhammyVideo.prototype.add = function(frame, duration){
 		if(typeof duration != 'undefined' && this.duration) throw "you can't pass a duration if the fps is set";
 		if(typeof duration == 'undefined' && !this.duration) throw "if you don't have the fps set, you need to have durations here.";
@@ -506,7 +508,7 @@ window.Whammy = (function(){
 		}else if(typeof frame != "string"){
 			throw "frame must be a a HTMLCanvasElement, a CanvasRenderingContext2D or a DataURI formatted string"
 		}
-		if (typeof frame === "string" && !(/^data:image\/webp;base64,/ig).test(frame)) {
+		if (typeof frame === "string" && !webpUrlRegex.test(frame)) {
 			throw "Input must be formatted properly as a base64 encoded DataURI of type image/webp";
 		}
 		this.frames.push({
@@ -515,8 +517,75 @@ window.Whammy = (function(){
 		});
 	};
 
+	var encoder;
+	
+	function loadScript(url, callback)
+	{
+		var head = document.getElementsByTagName('head')[0];
+		var script = document.createElement('script');
+		script.type = 'text/javascript';
+		script.src = url;
+		script.onreadystatechange = callback;
+		script.onload = callback;
+		head.appendChild(script);
+	}
+
+	function withFrameEncoder(callback){
+		if(encoder)
+			return callback(encoder);
+
+		if(webpUrlRegex.test(document.createElement('canvas').toDataURL('image/webp'))){
+			encoder = function(img, quality) { return atob(img.toDataURL('image/webp', quality).slice(23)); };
+			callback(encoder);
+		}else{
+			loadScript('libwebp-0.1.3.min.js', function(){
+				encoder = function(cvs, quali) {
+					var out={output:''}; //rgba data
+					var encoder = new WebPEncoder();
+
+					//config, you can set all arguments or what you need
+					config = new Object()
+					config.target_size = 0;			// if non-zero, set the desired target size in bytes. Takes precedence over the 'compression' parameter.
+					config.target_PSNR = 0.;		// if non-zero, specifies the minimal distortion to	try to achieve. Takes precedence over target_size.
+					config.method = 4;			// quality/speed trade-off (0=fast, 6=slower-better)
+					config.sns_strength = 50;		// Spatial Noise Shaping. 0=off, 100=maximum.
+					config.filter_strength = 20;	// range: [0 = off .. 100 = strongest]
+					config.filter_sharpness = 0;	// range: [0 = off .. 7 = least sharp]
+					config.filter_type = 1;			// filtering type: 0 = simple, 1 = strong (only used if filter_strength > 0 or autofilter > 0)
+					config.partitions = 0;			// log2(number of token partitions) in [0..3] Default is set to 0 for easier progressive decoding.
+					config.segments = 4;			// maximum number of segments to use, in [1..4]
+					config.pass = 2;				// number of entropy-analysis passes (in [1..10]).
+					config.show_compressed = 0;		// if true, export the compressed picture back. In-loop filtering is not applied.
+					config.preprocessing = 0;		// preprocessing filter (0=none, 1=segment-smooth)
+					config.autofilter = 0;			// Auto adjust filter's strength [0 = off, 1 = on]
+					//   --- description from libwebp-C-Source Code --- 
+					config.extra_info_type = 0;		// print extra_info
+					config.preset = 0 				//0: default, 1: picture, 2: photo, 3: drawing, 4: icon, 5: text					[config code]
+
+					//set config; default config -> WebPEncodeConfig( null ) 
+					encoder.WebPEncodeConfig(config); //when you set the config you must it do for every WebPEncode... new
+
+					//start encoding
+					var w = cvs.width;
+					var h = cvs.height;
+					var inputData = cvs.getContext('2d').getImageData(0, 0, w, h).data;
+					var size = encoder.WebPEncodeRGBA(inputData, w, h, w*4, quali || 0.8, out);
+
+					//after encoding, you can get the enc-details:
+					str = encoder.ReturnExtraInfo();
+
+					//output (array of bytes)
+					var output = out.output;
+					console.log(output);
+					return output;
+				};
+				callback(encoder);
+			});
+		}
+	}
+
 	// deferred webp encoding. Draws image data to canvas, then encodes as dataUrl
-	WhammyVideo.prototype.encodeFrames = function(callback){
+	WhammyVideo.prototype.encodeFrames = function(callback, frame_done_cb){
 
 		if(this.frames[0].image instanceof ImageData){
 
@@ -527,15 +596,20 @@ window.Whammy = (function(){
 			tmpCanvas.height = this.frames[0].image.height;
 
 			var encodeFrame = function(index){
-				console.log('encodeFrame', index);
+				if(!frame_done_cb)
+					console.log('encodeFrame', index);
 				var frame = frames[index];
-				tmpContext.putImageData(frame.image, 0, 0);
-				frame.image = tmpCanvas.toDataURL('image/webp', this.quality);
-				if(index < frames.length-1){
-					setTimeout(function(){ encodeFrame(index + 1); }, 1);
-				}else{
-					callback();
-				}
+				withFrameEncoder(function(encoder){
+					tmpContext.putImageData(frame.image, 0, 0);
+					frame.image = encoder(tmpCanvas, this.quality);
+					if(frame_done_cb)
+						frame_done_cb(index, frames.length);
+					if(index < frames.length-1){
+						setTimeout(function(){ encodeFrame(index + 1); }, 1);
+					}else{
+						callback();
+					}
+				});
 			}.bind(this);
 
 			encodeFrame(0);
@@ -544,25 +618,25 @@ window.Whammy = (function(){
 		}
 	};
 
-	WhammyVideo.prototype.compile = function(outputAsArray, callback){
+	WhammyVideo.prototype.compile = function(outputAsArray, callback, frame_done_cb){
 
 		this.encodeFrames(function(){
 
 			var webm = new toWebM(this.frames.map(function(frame){
-				var webp = parseWebP(parseRIFF(atob(frame.image.slice(23))));
+				var webp = parseWebP(parseRIFF(frame.image));
 				webp.duration = frame.duration;
 				return webp;
 			}), outputAsArray);
 			callback(webm);
 			
-		}.bind(this));
+		}.bind(this), frame_done_cb);
 	};
 
 	return {
 		Video: WhammyVideo,
 		fromImageArray: function(images, fps, outputAsArray){
 			return toWebM(images.map(function(image){
-				var webp = parseWebP(parseRIFF(atob(image.slice(23))))
+				var webp = parseWebP(parseRIFF(frame.image))
 				webp.duration = 1000 / fps;
 				return webp;
 			}), outputAsArray)
