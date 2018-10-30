@@ -4,7 +4,7 @@
 	vid.compile()
 */
 
-window.Whammy = (function(){
+const Whammy = (function(){
 	// in this case, frames has a very specific meaning, which will be
 	// detailed once i finish writing the code
 
@@ -217,7 +217,7 @@ window.Whammy = (function(){
 			}
 			var data = generateEBML([segment.data[i]], outputAsArray);
 			position += data.size || data.byteLength || data.length;
-			if (i != 2) { // not cues
+			if (i !== 2) { // not cues
 				//Save results to avoid having to encode everything twice
 				segment.data[i] = data;
 			}
@@ -233,8 +233,8 @@ window.Whammy = (function(){
 			height = frames[0].height,
 			duration = frames[0].duration;
 		for(var i = 1; i < frames.length; i++){
-			if(frames[i].width != width) throw "Frame " + (i + 1) + " has a different width";
-			if(frames[i].height != height) throw "Frame " + (i + 1) + " has a different height";
+			if(frames[i].width !== width) throw "Frame " + (i + 1) + " has a different width";
+			if(frames[i].height !== height) throw "Frame " + (i + 1) + " has a different height";
 			if(frames[i].duration < 0 || frames[i].duration > 0x7fff) throw "Frame " + (i + 1) + " has a weird duration (must be between 0 and 32767)";
 			duration += frames[i].duration;
 		}
@@ -303,9 +303,9 @@ window.Whammy = (function(){
 			}
 
 			var data = json[i].data;
-			if(typeof data == 'object') data = generateEBML(data, outputAsArray);
-			if(typeof data == 'number') data = ('size' in json[i]) ? numToFixedBuffer(data, json[i].size) : bitsToBuffer(data.toString(2));
-			if(typeof data == 'string') data = strToBuffer(data);
+			if(typeof data === 'object') data = generateEBML(data, outputAsArray);
+			if(typeof data === 'number') data = ('size' in json[i]) ? numToFixedBuffer(data, json[i].size) : bitsToBuffer(data.toString(2));
+			if(typeof data === 'string') data = strToBuffer(data);
 
 			if(data.length){
 				var z = z;
@@ -339,11 +339,11 @@ window.Whammy = (function(){
 	}
 
 	function toFlatArray(arr, outBuffer){
-		if(outBuffer == null){
+		if(outBuffer === null){
 			outBuffer = [];
 		}
 		for(var i = 0; i < arr.length; i++){
-			if(typeof arr[i] == 'object'){
+			if(typeof arr[i] === 'object'){
 				//an array
 				toFlatArray(arr[i], outBuffer)
 			}else{
@@ -375,8 +375,8 @@ window.Whammy = (function(){
 		var ebml = '';
 		for(var i = 0; i < json.length; i++){
 			var data = json[i].data;
-			if(typeof data == 'object') data = generateEBML_old(data);
-			if(typeof data == 'number') data = toBinStr_old(data.toString(2));
+			if(typeof data === 'object') data = generateEBML_old(data);
+			if(typeof data === 'number') data = toBinStr_old(data.toString(2));
 
 			var len = data.length;
 			var zeroes = Math.ceil(Math.ceil(Math.log(len)/Math.log(2))/8);
@@ -449,7 +449,7 @@ window.Whammy = (function(){
 		while (offset < string.length) {
 			var id = string.substr(offset, 4);
 			chunks[id] = chunks[id] || [];
-			if (id == 'RIFF' || id == 'LIST') {
+			if (id === 'RIFF' || id === 'LIST') {
 				var len = parseInt(string.substr(offset + 4, 4).split('').map(function(i){
 					var unpadded = i.charCodeAt(0).toString(2);
 					return (new Array(8 - unpadded.length + 1)).join('0') + unpadded
@@ -457,7 +457,7 @@ window.Whammy = (function(){
 				var data = string.substr(offset + 4 + 4, len);
 				offset += 4 + 4 + len;
 				chunks[id].push(parseRIFF(data));
-			} else if (id == 'WEBP') {
+			} else if (id === 'WEBP') {
 				// Use (offset + 8) to skip past "VP8 "/"VP8L"/"VP8X" field after "WEBP"
 				chunks[id].push(string.substr(offset + 8));
 				offset = string.length;
@@ -487,15 +487,15 @@ window.Whammy = (function(){
 			.join('') // join the bytes in holy matrimony as a string
 	}
 
-	function WhammyVideo(speed, quality){ // a more abstract-ish API
+	function WhammyVideo(speed, quality) { // a more abstract-ish API
 		this.frames = [];
 		this.duration = 1000 / speed;
 		this.quality = quality || 0.8;
 	}
 
 	WhammyVideo.prototype.add = function(frame, duration){
-		if(typeof duration != 'undefined' && this.duration) throw "you can't pass a duration if the fps is set";
-		if(typeof duration == 'undefined' && !this.duration) throw "if you don't have the fps set, you need to have durations here.";
+		if(typeof duration !== 'undefined' && this.duration) throw "you can't pass a duration if the fps is set";
+		if(typeof duration === 'undefined' && !this.duration) throw "if you don't have the fps set, you need to have durations here.";
 		if(frame.canvas){ //CanvasRenderingContext2D
 			frame = frame.canvas;
 		}
@@ -503,7 +503,7 @@ window.Whammy = (function(){
 			// frame = frame.toDataURL('image/webp', this.quality);
 			// quickly store image data so we don't block cpu. encode in compile method.
 			frame = frame.getContext('2d').getImageData(0, 0, frame.width, frame.height);
-		}else if(typeof frame != "string"){
+		}else if(typeof frame !== "string"){
 			throw "frame must be a a HTMLCanvasElement, a CanvasRenderingContext2D or a DataURI formatted string"
 		}
 		if (typeof frame === "string" && !(/^data:image\/webp;base64,/ig).test(frame)) {
@@ -517,7 +517,6 @@ window.Whammy = (function(){
 
 	// deferred webp encoding. Draws image data to canvas, then encodes as dataUrl
 	WhammyVideo.prototype.encodeFrames = function(callback){
-
 		if(this.frames[0].image instanceof ImageData){
 
 			var frames = this.frames;
@@ -571,3 +570,5 @@ window.Whammy = (function(){
 		// expose methods of madness
 	}
 })()
+
+module.exports = Whammy
