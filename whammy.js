@@ -55,7 +55,7 @@ window.Whammy = (function(){
 						"id": 0x1549a966, // Info
 						"data": [
 							{
-								"data": 1e6, //do things in millisecs (num of nanosecs for duration scale)
+								"data": Math.round(1e6 * frames[0].duration), //do things in millisecs (num of nanosecs for duration scale)
 								"id": 0x2ad7b1 // TimecodeScale
 							},
 							{
@@ -189,14 +189,14 @@ window.Whammy = (function(){
 					].concat(clusterFrames.map(function(webp){
 						var block = makeSimpleBlock({
 							discardable: 0,
-							frame: webp.data.slice(4),
+							frame: webp.data.slice(webp.data.indexOf("\x9d\x01\x2a") - 3),
 							invisible: 0,
 							keyframe: 1,
 							lacing: 0,
 							trackNum: 1,
 							timecode: Math.round(clusterCounter)
 						});
-						clusterCounter += webp.duration;
+						clusterCounter += 1;
 						return {
 							data: block,
 							id: 0xa3
@@ -231,12 +231,12 @@ window.Whammy = (function(){
 	function checkFrames(frames){
 		var width = frames[0].width,
 			height = frames[0].height,
-			duration = frames[0].duration;
+			duration = 1;
 		for(var i = 1; i < frames.length; i++){
 			if(frames[i].width != width) throw "Frame " + (i + 1) + " has a different width";
 			if(frames[i].height != height) throw "Frame " + (i + 1) + " has a different height";
 			if(frames[i].duration < 0 || frames[i].duration > 0x7fff) throw "Frame " + (i + 1) + " has a weird duration (must be between 0 and 32767)";
-			duration += frames[i].duration;
+			duration += 1;
 		}
 		return {
 			duration: duration,
