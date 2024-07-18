@@ -4,6 +4,11 @@
 	vid.compile()
 */
 
+// If we are in a browser then there will be no global, so we should use window instead
+if (typeof global === "undefined"){
+	var global = window
+}
+
 window.Whammy = (function(){
 	// in this case, frames has a very specific meaning, which will be
 	// detailed once i finish writing the code
